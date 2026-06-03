@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <title>Liga Ziomków — Ziomki Edition</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div class="hero-glow"></div>
+      <div class="topbar">
+        <div class="brand-badge">LZ</div>
+        <div>
+          <p class="eyebrow">Ziomki Edition</p>
+          <h1>Liga Ziomków</h1>
+        </div>
+      </div>
+      <p class="lead">Prywatna liga typerów dla Marcina, Fabiana, Huberta i Kamila.</p>
+      <div class="hero-stats" id="heroStats"></div>
+    </header>
+
+    <nav class="tabs" aria-label="Główna nawigacja">
+      <button class="tab active" data-view="ranking">Ranking</button>
+      <button class="tab" data-view="typowanie">Typowanie</button>
+      <button class="tab" data-view="admin">Wyniki</button>
+      <button class="tab" data-view="zasady">Zasady</button>
+    </nav>
+
+    <main>
+      <section id="view-ranking" class="view active">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Tabela</p>
+            <h2>Klasyfikacja ziomków</h2>
+          </div>
+          <button class="ghost" id="resetDemoBtn">Wyczyść dane</button>
+        </div>
+        <div id="rankingCards" class="ranking-grid"></div>
+        <div class="panel">
+          <h3>Ostatnio punktowane mecze</h3>
+          <div id="recentMatches" class="match-list compact"></div>
+        </div>
+      </section>
+
+      <section id="view-typowanie" class="view">
+        <div class="section-head wrap">
+          <div>
+            <p class="eyebrow">Typowanie</p>
+            <h2>Wpisz swoje typy</h2>
+          </div>
+          <label class="select-label">Gracz
+            <select id="playerSelect"></select>
+          </label>
+        </div>
+        <div class="notice">
+          To jest wersja lokalna MVP. Dane zapisują się w tej przeglądarce. Synchronizacja między telefonami będzie kolejnym etapem po podpięciu bazy online.
+        </div>
+        <div class="filters" id="groupFilters"></div>
+        <div id="predictionMatches" class="match-list"></div>
+      </section>
+
+      <section id="view-admin" class="view">
+        <div class="section-head wrap">
+          <div>
+            <p class="eyebrow">Panel wyników</p>
+            <h2>Wpisz oficjalne wyniki</h2>
+          </div>
+          <button class="gold" id="exportBtn">Eksportuj dane</button>
+        </div>
+        <div class="notice warning">
+          W tej wersji każdy, kto ma stronę, może edytować wyniki. Po podpięciu Supabase dodamy logowanie i uprawnienia admina dla Marcina.
+        </div>
+        <div id="adminMatches" class="match-list"></div>
+        <div class="panel data-panel">
+          <h3>Backup / przenoszenie danych</h3>
+          <p>Skopiuj eksport i wklej go na innym telefonie, żeby przenieść aktualny stan ligi.</p>
+          <textarea id="dataBox" placeholder="Tutaj pojawi się eksport albo wklej tutaj import..."></textarea>
+          <div class="button-row">
+            <button class="ghost" id="copyDataBtn">Kopiuj</button>
+            <button class="ghost" id="importBtn">Importuj</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-zasady" class="view">
+        <div class="panel rules">
+          <p class="eyebrow">Regulamin</p>
+          <h2>Zasady punktacji</h2>
+          <div class="rule-grid">
+            <div class="rule-card"><strong>3 pkt</strong><span>dokładny wynik, np. typ 2:1 i wynik 2:1</span></div>
+            <div class="rule-card"><strong>1 pkt</strong><span>trafione rozstrzygnięcie: zwycięstwo, remis albo porażka</span></div>
+            <div class="rule-card"><strong>0 pkt</strong><span>nietrafiony typ</span></div>
+          </div>
+          <h3>Plan rozwoju</h3>
+          <ul class="clean-list">
+            <li>Podpięcie domeny <strong>ligaziomkow.pl</strong>.</li>
+            <li>Podpięcie bazy online, żeby wszyscy widzieli te same dane.</li>
+            <li>Logowanie dla Marcina, Fabiana, Huberta i Kamila.</li>
+            <li>Blokada typów po rozpoczęciu meczu.</li>
+            <li>Aktualny terminarz Mundialu 2026 po wprowadzeniu pełnych danych.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Liga Ziomków © Ziomki Edition — Marcin, Fabian, Hubert, Kamil
+    </footer>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
