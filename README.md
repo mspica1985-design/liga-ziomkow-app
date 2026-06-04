@@ -1,36 +1,46 @@
-# Liga Ziomków
+# Liga Ziomków — Mundial Typer 2026
 
-Prywatna strona typu **typer piłkarski** dla czterech graczy:
+Prywatna aplikacja typu typer piłkarski dla czterech osób:
 
 - Marcin
 - Fabian
 - Hubert
 - Kamil
 
-## Co jest w tej wersji
+## Funkcje
 
-- ranking graczy,
-- wpisywanie typów,
-- wpisywanie oficjalnych wyników,
-- automatyczne liczenie punktów,
-- podział na grupy A–L,
-- eksport/import danych,
-- tryb PWA — można dodać stronę do ekranu głównego telefonu.
+- logowanie przez Supabase,
+- wspólne dane online,
+- ranking na żywo,
+- typowanie wyników,
+- panel admina do wpisywania oficjalnych wyników,
+- blokada zmiany typu po rozpoczęciu meczu,
+- grupy A–L Mundialu 2026,
+- PWA — stronę można dodać na ekran telefonu.
 
-## Punktacja
+## Pliki SQL
 
-- 3 punkty — dokładny wynik,
-- 1 punkt — trafione rozstrzygnięcie,
-- 0 punktów — nietrafiony typ.
+W folderze `sql` są dwa pliki:
 
-## Ważne
+1. `supabase_schema.sql` — tworzy tabele, widok rankingu, zasady RLS i Realtime.
+2. `seed_matches_worldcup2026.sql` — dodaje mecze fazy grupowej.
 
-Ta pierwsza wersja zapisuje dane lokalnie w przeglądarce. Żeby czterech graczy widziało te same typy i punkty na żywo na różnych telefonach, kolejnym etapem będzie podpięcie bazy online, np. Supabase.
+Jeżeli schemat bazy został już utworzony wcześniej, wystarczy uruchomić tylko:
 
-## Deploy na Vercel
+```sql
+sql/seed_matches_worldcup2026.sql
+```
 
-1. Wejdź na Vercel.
-2. Kliknij **Add New → Project**.
-3. Wybierz repozytorium `liga-ziomkow-app`.
-4. Kliknij **Deploy**.
-5. Po publikacji dodaj domenę `ligaziomkow.pl` w ustawieniach projektu.
+## Deploy
+
+Wgraj wszystkie pliki do repozytorium GitHub i poczekaj na automatyczny deploy w Vercel.
+
+Jeżeli Vercel nie zrobi automatycznego deploya, kliknij w projekcie:
+
+`Deployments → Redeploy`
+
+## Supabase
+
+Konfiguracja publiczna jest w `config.js`.
+
+Użyty klucz to anon/public key, czyli klucz przeznaczony do frontendu. Nie wolno tutaj wpisywać `service_role`, `secret key` ani żadnego klucza administracyjnego.

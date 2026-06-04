@@ -1,18 +1,12 @@
 {
   "name": "Liga Ziomków",
   "short_name": "Liga Ziomków",
-  "description": "Prywatna liga typerów dla Marcina, Fabiana, Huberta i Kamila.",
-  "start_url": ".",
+  "description": "Prywatna liga typerów Mundial 2026.",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#06101d",
-  "theme_color": "#07111f",
-  "lang": "pl",
+  "background_color": "#06111f",
+  "theme_color": "#06111f",
   "icons": [
-    {
-      "src": "assets/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }
