@@ -263,3 +263,43 @@ footer { color: var(--muted); text-align: center; padding: 26px 0 0; }
   .hero-cards, .ranking-grid { grid-template-columns: 1fr; }
   .user-strip { align-items: flex-start; }
 }
+
+/* v2 — drabinka Mundialu 2026 */
+.tabs { grid-template-columns: repeat(6, 1fr); }
+.round-block { display: grid; gap: 10px; margin-bottom: 18px; }
+.round-block > h3 {
+  margin: 8px 2px 2px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: .92rem;
+}
+.bracket-list { display: grid; gap: 14px; }
+.winner-line {
+  border: 1px solid rgba(246,211,122,.24);
+  border-radius: 14px;
+  padding: 8px 10px;
+  background: rgba(246,211,122,.08);
+  margin: -4px 0 10px;
+  color: #ffe9a4;
+  font-weight: 800;
+}
+.winner-line.muted { color: var(--muted); border-color: var(--line); background: rgba(255,255,255,.04); }
+.winner-picker { margin-top: 10px; }
+.admin-extra-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+.score-box small, .team small {
+  display: block;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 800;
+  margin-top: 2px;
+}
+@media (max-width: 760px) {
+  .tabs { grid-template-columns: repeat(3, 1fr); }
+  .admin-extra-grid { grid-template-columns: 1fr; }
+}

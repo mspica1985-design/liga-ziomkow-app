@@ -1,46 +1,30 @@
-# Liga Ziomków — Mundial Typer 2026
+# Liga Ziomków v2 — drabinka Mundialu 2026
 
-Prywatna aplikacja typu typer piłkarski dla czterech osób:
+Ta paczka dodaje fazę pucharową do istniejącej strony `ligaziomkow.pl` bez kasowania obecnych danych.
 
-- Marcin
-- Fabian
-- Hubert
-- Kamil
+## Najważniejsze
 
-## Funkcje
+Nie uruchamiaj żadnych komend `drop table`, `truncate` ani `delete`. Ta aktualizacja dodaje tylko kolumny i mecze 73–104.
 
-- logowanie przez Supabase,
-- wspólne dane online,
-- ranking na żywo,
-- typowanie wyników,
-- panel admina do wpisywania oficjalnych wyników,
-- blokada zmiany typu po rozpoczęciu meczu,
-- grupy A–L Mundialu 2026,
-- PWA — stronę można dodać na ekran telefonu.
+## Kolejność wdrożenia
 
-## Pliki SQL
+1. W Supabase zrób kontrolny backup/liczniki.
+2. W SQL Editor odpal `sql/01_knockout_schema_update.sql`.
+3. W SQL Editor odpal `sql/02_seed_knockout_matches.sql`.
+4. Wrzuć pliki strony z tej paczki do GitHuba i nadpisz stare.
+5. Poczekaj na deploy Vercel.
+6. Otwórz `https://ligaziomkow.pl` i sprawdź zakładkę `Drabinka`.
 
-W folderze `sql` są dwa pliki:
+## Co dodaje wersja v2
 
-1. `supabase_schema.sql` — tworzy tabele, widok rankingu, zasady RLS i Realtime.
-2. `seed_matches_worldcup2026.sql` — dodaje mecze fazy grupowej.
+- zakładkę `Drabinka`,
+- mecze 73–104,
+- typowanie awansu w fazie pucharowej,
+- wpisywanie awansu przez admina,
+- opcjonalne karne,
+- ranking v2: 3 pkt za dokładny wynik, 1 pkt za trafione rozstrzygnięcie lub awans,
+- zachowanie blokady typów po rozpoczęciu meczu.
 
-Jeżeli schemat bazy został już utworzony wcześniej, wystarczy uruchomić tylko:
+## Uwaga o trzecich miejscach
 
-```sql
-sql/seed_matches_worldcup2026.sql
-```
-
-## Deploy
-
-Wgraj wszystkie pliki do repozytorium GitHub i poczekaj na automatyczny deploy w Vercel.
-
-Jeżeli Vercel nie zrobi automatycznego deploya, kliknij w projekcie:
-
-`Deployments → Redeploy`
-
-## Supabase
-
-Konfiguracja publiczna jest w `config.js`.
-
-Użyty klucz to anon/public key, czyli klucz przeznaczony do frontendu. Nie wolno tutaj wpisywać `service_role`, `secret key` ani żadnego klucza administracyjnego.
+W meczach 1/32 z trzecimi miejscami użyte są seed-y typu `3A/B/C/D/F`. Konkretna drużyna zależy od tego, które osiem trzecich miejsc awansuje. Możesz później ręcznie podmienić `home_team`/`away_team` w Supabase, zostawiając `home_seed`/`away_seed` jako informację o źródle miejsca.

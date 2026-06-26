@@ -1,6 +1,19 @@
 const cfg = window.LIGA_ZIOMKOW_CONFIG;
 const client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
+const ROUND_LABELS = {
+  group: 'Faza grupowa',
+  round_of_32: '1/32 finału',
+  round_of_16: '1/16 finału',
+  quarterfinal: 'Ćwierćfinał',
+  semifinal: 'Półfinał',
+  third_place: 'Mecz o 3. miejsce',
+  final: 'Finał'
+};
+
+const ROUND_ORDER = ['round_of_32', 'round_of_16', 'quarterfinal', 'semifinal', 'third_place', 'final'];
+const GROUP_KEYS = Object.keys(window.LZ_GROUPS || {});
+
 const state = {
   session: null,
   user: null,
@@ -10,12 +23,23 @@ const state = {
   ranking: [],
   groupTypy: 'ALL',
   groupMecze: 'ALL',
+  roundDrabinka: 'ALL',
   channels: []
 };
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-const flag = (team) => (window.LZ_FLAGS && window.LZ_FLAGS[team]) || '⚽';
+
+function isKnockout(match) {
+  return match.stage && match.stage !== 'group';
+}
+
+function flag(team) {
+  if (window.LZ_FLAGS && window.LZ_FLAGS[team]) return window.LZ_FLAGS[team];
+  if (/^(W|L)\d+$/i.test(String(team || ''))) return '🏆';
+  if (/^(1|2|3)[A-L]/i.test(String(team || ''))) return '🎯';
+  return '⚽';
+}
 
 function polishDate(iso) {
   if (!iso) return '—';
@@ -39,11 +63,32 @@ function resultSign(home, away) {
   return 0;
 }
 
+function matchWinnerSide(match) {
+  if (match.winner_side === 'home' || match.winner_side === 'away') return match.winner_side;
+  if (!isSettled(match)) return null;
+  if (Number(match.home_score) > Number(match.away_score)) return 'home';
+  if (Number(match.home_score) < Number(match.away_score)) return 'away';
+  return null;
+}
+
+function predictionWinnerSide(pred, match) {
+  if (pred?.winner_pick === 'home' || pred?.winner_pick === 'away') return pred.winner_pick;
+  if (!pred) return null;
+  if (Number(pred.home_goals) > Number(pred.away_goals)) return 'home';
+  if (Number(pred.home_goals) < Number(pred.away_goals)) return 'away';
+  return isKnockout(match) ? null : 'draw';
+}
+
 function calcPoints(pred, match) {
   if (!pred || !isSettled(match)) return 0;
-  if (Number(pred.home_goals) === Number(match.home_score) && Number(pred.away_goals) === Number(match.away_score)) return 3;
-  if (resultSign(Number(pred.home_goals), Number(pred.away_goals)) === resultSign(Number(match.home_score), Number(match.away_score))) return 1;
-  return 0;
+  const exact = Number(pred.home_goals) === Number(match.home_score) && Number(pred.away_goals) === Number(match.away_score);
+  if (exact) return 3;
+  if (isKnockout(match)) {
+    const actualWinner = matchWinnerSide(match);
+    const predictedWinner = predictionWinnerSide(pred, match);
+    return actualWinner && predictedWinner === actualWinner ? 1 : 0;
+  }
+  return resultSign(Number(pred.home_goals), Number(pred.away_goals)) === resultSign(Number(match.home_score), Number(match.away_score)) ? 1 : 0;
 }
 
 function getOwnPrediction(matchId) {
@@ -190,36 +235,61 @@ function renderAll() {
   renderHeroStats();
   renderFilters('groupFiltersTypy', 'groupTypy');
   renderFilters('groupFiltersMecze', 'groupMecze');
+  renderRoundFilters('roundFiltersDrabinka', 'roundDrabinka');
   renderRanking();
   renderPredictions();
   renderSchedule();
+  renderBracket();
   renderAdmin();
   renderRecentSettled();
 }
 
 function renderHeroStats() {
-  const totalMatches = state.matches.length || 72;
+  const totalMatches = state.matches.length || 104;
   const settled = state.matches.filter(isSettled).length;
   const allPreds = state.predictions.length;
-  const groups = Object.keys(window.LZ_GROUPS || {}).length || 12;
+  const ko = state.matches.filter(isKnockout).length || 32;
   $('#heroStats').innerHTML = [
-    ['Grupy', groups], ['Mecze', totalMatches], ['Wyniki', settled], ['Typy', allPreds]
+    ['Mecze', totalMatches], ['Drabinka', ko], ['Wyniki', settled], ['Typy', allPreds]
   ].map(([label, value]) => `<div class="hero-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
 }
 
 function renderFilters(containerId, stateKey) {
   const active = state[stateKey];
-  const groups = ['ALL', ...Object.keys(window.LZ_GROUPS || {})];
-  $('#' + containerId).innerHTML = groups.map(g => `<button class="filter-btn ${active === g ? 'active' : ''}" data-group="${g}" data-key="${stateKey}">${g === 'ALL' ? 'Wszystkie' : 'Grupa ' + g}</button>`).join('');
+  const groups = ['ALL', ...GROUP_KEYS, 'KO'];
+  $('#' + containerId).innerHTML = groups.map(g => `<button class="filter-btn ${active === g ? 'active' : ''}" data-group="${g}" data-key="${stateKey}">${filterLabel(g)}</button>`).join('');
   $$('#' + containerId + ' .filter-btn').forEach(btn => btn.addEventListener('click', () => {
     state[btn.dataset.key] = btn.dataset.group;
     renderAll();
   }));
 }
 
+function renderRoundFilters(containerId, stateKey) {
+  const active = state[stateKey];
+  const rounds = ['ALL', ...ROUND_ORDER];
+  $('#' + containerId).innerHTML = rounds.map(r => `<button class="filter-btn ${active === r ? 'active' : ''}" data-round="${r}" data-key="${stateKey}">${r === 'ALL' ? 'Cała drabinka' : ROUND_LABELS[r]}</button>`).join('');
+  $$('#' + containerId + ' .filter-btn').forEach(btn => btn.addEventListener('click', () => {
+    state[btn.dataset.key] = btn.dataset.round;
+    renderAll();
+  }));
+}
+
+function filterLabel(value) {
+  if (value === 'ALL') return 'Wszystkie';
+  if (value === 'KO') return 'Drabinka';
+  return 'Grupa ' + value;
+}
+
 function filteredMatches(group) {
   if (group === 'ALL') return state.matches;
+  if (group === 'KO') return state.matches.filter(isKnockout);
   return state.matches.filter(m => m.group_code === group);
+}
+
+function filteredRounds(round) {
+  const ko = state.matches.filter(isKnockout);
+  if (round === 'ALL') return ko;
+  return ko.filter(m => m.stage === round);
 }
 
 function renderRanking() {
@@ -233,7 +303,7 @@ function renderRanking() {
       <div class="player-points">${row.points}</div>
       <div class="mini-stats">
         <span>dokładne: ${row.exact_scores}</span>
-        <span>rozstrzygnięcia: ${row.correct_outcomes}</span>
+        <span>rozstrzygnięcia/awans: ${row.correct_outcomes}</span>
         <span>rozliczone: ${row.settled_predictions}</span>
       </div>
     </article>
@@ -249,6 +319,24 @@ function renderPredictions() {
 function renderSchedule() {
   const list = filteredMatches(state.groupMecze);
   $('#scheduleMatches').innerHTML = list.map(match => scheduleCard(match)).join('') || emptyPanel('Brak meczów', 'Najpierw załaduj terminarz do tabeli matches.');
+}
+
+function renderBracket() {
+  const list = filteredRounds(state.roundDrabinka);
+  if (!list.length) {
+    $('#bracketMatches').innerHTML = emptyPanel('Brak drabinki', 'Odpal migrację i seed meczów 73–104 w Supabase.');
+    return;
+  }
+  const groups = list.reduce((acc, match) => {
+    const key = match.stage;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(match);
+    return acc;
+  }, {});
+  $('#bracketMatches').innerHTML = Object.keys(groups)
+    .sort((a, b) => ROUND_ORDER.indexOf(a) - ROUND_ORDER.indexOf(b))
+    .map(stage => `<div class="round-block"><h3>${ROUND_LABELS[stage] || stage}</h3><div class="match-list">${groups[stage].map(match => scheduleCard(match)).join('')}</div></div>`)
+    .join('');
 }
 
 function renderAdmin() {
@@ -268,16 +356,46 @@ function renderRecentSettled() {
 
 function matchHeader(match) {
   const status = isSettled(match) ? '<span class="status-pill settled">rozliczony</span>' : isLocked(match) ? '<span class="status-pill locked">zablokowany</span>' : '<span class="status-pill open">otwarty</span>';
-  return `<div class="match-meta"><span><b class="group-badge">${match.group_code}</b> #${match.match_no} · ${polishDate(match.kickoff_at)} UK</span>${status}</div>`;
+  const stage = isKnockout(match) ? (ROUND_LABELS[match.stage] || match.stage) : `Grupa ${match.group_code}`;
+  return `<div class="match-meta"><span><b class="group-badge">${escapeHtml(isKnockout(match) ? 'KO' : match.group_code)}</b> #${match.match_no} · ${stage} · ${polishDate(match.kickoff_at)} UK</span>${status}</div>`;
+}
+
+function teamLabel(match, side) {
+  const team = side === 'home' ? match.home_team : match.away_team;
+  const seed = side === 'home' ? match.home_seed : match.away_seed;
+  if (team && seed && team !== seed) return `${team} <small>${seed}</small>`;
+  return escapeHtml(team || seed || 'TBD');
 }
 
 function teamsRow(match) {
-  const score = isSettled(match) ? `${match.home_score} : ${match.away_score}` : '— : —';
+  const score = isSettled(match) ? scoreLabel(match) : '— : —';
   return `<div class="teams">
-    <div class="team home"><span class="flag">${flag(match.home_team)}</span><span>${escapeHtml(match.home_team)}</span></div>
+    <div class="team home"><span class="flag">${flag(match.home_team || match.home_seed)}</span><span>${teamLabel(match, 'home')}</span></div>
     <div class="score-box">${score}</div>
-    <div class="team away"><span>${escapeHtml(match.away_team)}</span><span class="flag">${flag(match.away_team)}</span></div>
-  </div>`;
+    <div class="team away"><span>${teamLabel(match, 'away')}</span><span class="flag">${flag(match.away_team || match.away_seed)}</span></div>
+  </div>${winnerLine(match)}`;
+}
+
+function scoreLabel(match) {
+  const base = `${match.home_score} : ${match.away_score}`;
+  if (match.home_penalties !== null && match.away_penalties !== null && match.home_penalties !== undefined && match.away_penalties !== undefined) {
+    return `${base}<small>k. ${match.home_penalties}:${match.away_penalties}</small>`;
+  }
+  return base;
+}
+
+function winnerLine(match) {
+  if (!isKnockout(match)) return '';
+  const side = matchWinnerSide(match);
+  if (!side) return '<div class="winner-line muted">Awans: do wpisania po meczu</div>';
+  const label = side === 'home' ? plainTeam(match, 'home') : plainTeam(match, 'away');
+  return `<div class="winner-line">Awans: <strong>${escapeHtml(label)}</strong></div>`;
+}
+
+function plainTeam(match, side) {
+  const team = side === 'home' ? match.home_team : match.away_team;
+  const seed = side === 'home' ? match.home_seed : match.away_seed;
+  return team || seed || 'TBD';
 }
 
 function predictionCard(match) {
@@ -294,6 +412,7 @@ function predictionCard(match) {
       <div class="prediction-box">:</div>
       <input ${disabled} inputmode="numeric" pattern="[0-9]*" min="0" max="99" type="number" id="pred-away-${match.id}" value="${own?.away_goals ?? ''}" placeholder="0" />
     </div>
+    ${isKnockout(match) ? winnerPickControl(match, own, disabled) : ''}
     <div class="match-actions" style="margin-top:10px">
       <button class="gold save-prediction" data-match="${match.id}" ${disabled}>${buttonLabel}</button>
       ${points !== null ? `<span class="status-pill settled">Twoje punkty: ${points}</span>` : ''}
@@ -301,6 +420,18 @@ function predictionCard(match) {
     </div>
     ${predictionsGrid(match)}
   </article>`;
+}
+
+function winnerPickControl(match, pred, disabled = '') {
+  const home = plainTeam(match, 'home');
+  const away = plainTeam(match, 'away');
+  return `<label class="winner-picker">Kto awansuje?
+    <select id="pred-winner-${match.id}" ${disabled}>
+      <option value="">Wybierz drużynę</option>
+      <option value="home" ${pred?.winner_pick === 'home' ? 'selected' : ''}>${escapeHtml(home)}</option>
+      <option value="away" ${pred?.winner_pick === 'away' ? 'selected' : ''}>${escapeHtml(away)}</option>
+    </select>
+  </label>`;
 }
 
 function scheduleCard(match, compact = false) {
@@ -312,22 +443,42 @@ function scheduleCard(match, compact = false) {
 }
 
 function adminCard(match) {
+  const win = matchWinnerSide(match) || '';
   return `<article class="panel match-card">
     ${matchHeader(match)}
     <div class="teams">
-      <div class="team home"><span class="flag">${flag(match.home_team)}</span><span>${escapeHtml(match.home_team)}</span></div>
+      <div class="team home"><span class="flag">${flag(match.home_team || match.home_seed)}</span><span>${teamLabel(match, 'home')}</span></div>
       <div class="score-inputs">
         <input inputmode="numeric" pattern="[0-9]*" min="0" max="99" type="number" id="res-home-${match.id}" value="${match.home_score ?? ''}" placeholder="0" />
         <div class="prediction-box">:</div>
         <input inputmode="numeric" pattern="[0-9]*" min="0" max="99" type="number" id="res-away-${match.id}" value="${match.away_score ?? ''}" placeholder="0" />
       </div>
-      <div class="team away"><span>${escapeHtml(match.away_team)}</span><span class="flag">${flag(match.away_team)}</span></div>
+      <div class="team away"><span>${teamLabel(match, 'away')}</span><span class="flag">${flag(match.away_team || match.away_seed)}</span></div>
     </div>
+    ${isKnockout(match) ? adminKnockoutControls(match, win) : ''}
     <div class="match-actions">
       <button class="gold save-result" data-match="${match.id}">Zapisz wynik</button>
       <button class="ghost clear-result" data-match="${match.id}">Wyczyść wynik</button>
     </div>
   </article>`;
+}
+
+function adminKnockoutControls(match, win) {
+  return `<div class="admin-extra-grid">
+    <label>Awansuje
+      <select id="res-winner-${match.id}">
+        <option value="">Auto, jeśli nie ma remisu</option>
+        <option value="home" ${win === 'home' ? 'selected' : ''}>${escapeHtml(plainTeam(match, 'home'))}</option>
+        <option value="away" ${win === 'away' ? 'selected' : ''}>${escapeHtml(plainTeam(match, 'away'))}</option>
+      </select>
+    </label>
+    <label>Karne gospodarze
+      <input inputmode="numeric" pattern="[0-9]*" min="0" max="99" type="number" id="pen-home-${match.id}" value="${match.home_penalties ?? ''}" placeholder="opcjonalnie" />
+    </label>
+    <label>Karne goście
+      <input inputmode="numeric" pattern="[0-9]*" min="0" max="99" type="number" id="pen-away-${match.id}" value="${match.away_penalties ?? ''}" placeholder="opcjonalnie" />
+    </label>
+  </div>`;
 }
 
 function predictionsGrid(match) {
@@ -336,9 +487,18 @@ function predictionsGrid(match) {
   const byName = new Map(preds.map(p => [p.profiles?.display_name || p.player_id, p]));
   return `<div class="predictions-grid">${window.LZ_PLAYERS.map(name => {
     const pred = byName.get(name);
-    const content = pred ? `${pred.home_goals}:${pred.away_goals}${isSettled(match) ? ` · ${calcPoints(pred, match)} pkt` : ''}` : (isLocked(match) ? 'brak typu' : 'ukryty / brak');
+    const content = pred ? predictionLabel(pred, match) : (isLocked(match) ? 'brak typu' : 'ukryty / brak');
     return `<div class="pred-chip"><strong>${name}</strong><span>${content}</span></div>`;
   }).join('')}</div>`;
+}
+
+function predictionLabel(pred, match) {
+  let text = `${pred.home_goals}:${pred.away_goals}`;
+  if (isKnockout(match) && pred.winner_pick) {
+    text += ` → ${escapeHtml(pred.winner_pick === 'home' ? plainTeam(match, 'home') : plainTeam(match, 'away'))}`;
+  }
+  if (isSettled(match)) text += ` · ${calcPoints(pred, match)} pkt`;
+  return text;
 }
 
 async function savePrediction(event) {
@@ -351,15 +511,21 @@ async function savePrediction(event) {
   }
   const home = parseInt($(`#pred-home-${matchId}`).value, 10);
   const away = parseInt($(`#pred-away-${matchId}`).value, 10);
+  const winnerPick = isKnockout(match) ? $(`#pred-winner-${matchId}`).value : null;
   if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
     alert('Wpisz poprawny wynik, np. 2 i 1.');
+    return;
+  }
+  if (isKnockout(match) && !['home', 'away'].includes(winnerPick)) {
+    alert('W fazie pucharowej musisz wybrać, kto awansuje.');
     return;
   }
   const { error } = await client.from('predictions').upsert({
     match_id: matchId,
     player_id: state.profile.id,
     home_goals: home,
-    away_goals: away
+    away_goals: away,
+    winner_pick: winnerPick
   }, { onConflict: 'match_id,player_id' });
   if (error) alert('Nie udało się zapisać typu: ' + error.message);
   else await refreshAfterRealtime();
@@ -367,6 +533,7 @@ async function savePrediction(event) {
 
 async function saveResult(event) {
   const matchId = event.currentTarget.dataset.match;
+  const match = state.matches.find(m => m.id === matchId);
   const homeRaw = $(`#res-home-${matchId}`).value;
   const awayRaw = $(`#res-away-${matchId}`).value;
   const home = parseInt(homeRaw, 10);
@@ -375,15 +542,43 @@ async function saveResult(event) {
     alert('Wpisz poprawny oficjalny wynik.');
     return;
   }
-  const { error } = await client.from('matches').update({ home_score: home, away_score: away }).eq('id', matchId);
+
+  const update = { home_score: home, away_score: away };
+  if (isKnockout(match)) {
+    let winner = $(`#res-winner-${matchId}`).value;
+    if (!winner && home > away) winner = 'home';
+    if (!winner && away > home) winner = 'away';
+    if (!['home', 'away'].includes(winner)) {
+      alert('W fazie pucharowej przy remisie musisz wskazać, kto awansował.');
+      return;
+    }
+    update.winner_side = winner;
+    const penHome = parseOptionalInt($(`#pen-home-${matchId}`).value);
+    const penAway = parseOptionalInt($(`#pen-away-${matchId}`).value);
+    update.home_penalties = penHome;
+    update.away_penalties = penAway;
+  }
+  const { error } = await client.from('matches').update(update).eq('id', matchId);
   if (error) alert('Nie udało się zapisać wyniku: ' + error.message);
   else await refreshAfterRealtime();
+}
+
+function parseOptionalInt(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = parseInt(value, 10);
+  return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
 async function clearResult(event) {
   const matchId = event.currentTarget.dataset.match;
   if (!confirm('Wyczyścić oficjalny wynik tego meczu?')) return;
-  const { error } = await client.from('matches').update({ home_score: null, away_score: null }).eq('id', matchId);
+  const { error } = await client.from('matches').update({
+    home_score: null,
+    away_score: null,
+    winner_side: null,
+    home_penalties: null,
+    away_penalties: null
+  }).eq('id', matchId);
   if (error) alert('Nie udało się wyczyścić wyniku: ' + error.message);
   else await refreshAfterRealtime();
 }

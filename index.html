@@ -59,6 +59,7 @@
         <button class="tab active" data-view="ranking">Ranking</button>
         <button class="tab" data-view="typy">Typy</button>
         <button class="tab" data-view="mecze">Mecze</button>
+        <button class="tab" data-view="drabinka">Drabinka</button>
         <button class="tab admin-only" data-view="admin">Wyniki</button>
         <button class="tab" data-view="zasady">Zasady</button>
       </nav>
@@ -96,11 +97,24 @@
           <div class="section-head wrap">
             <div>
               <p class="eyebrow">Terminarz</p>
-              <h2>Grupy A–L</h2>
+              <h2>Grupy A–L i faza pucharowa</h2>
             </div>
           </div>
           <div id="groupFiltersMecze" class="filters"></div>
           <div id="scheduleMatches" class="match-list"></div>
+        </section>
+
+        <section id="view-drabinka" class="view">
+          <div class="section-head wrap">
+            <div>
+              <p class="eyebrow">Faza pucharowa</p>
+              <h2>Drabinka meczów 73–104</h2>
+            </div>
+            <div class="live-pill">KO MODE</div>
+          </div>
+          <div class="notice">W pucharowej typujesz wynik oraz wskazujesz, kto awansuje. Po pierwszym gwizdku typ jest blokowany tak samo jak w grupach.</div>
+          <div id="roundFiltersDrabinka" class="filters"></div>
+          <div id="bracketMatches" class="bracket-list"></div>
         </section>
 
         <section id="view-admin" class="view">
@@ -120,13 +134,15 @@
             <h2>Zasady punktacji</h2>
             <div class="rule-grid">
               <div class="rule-card"><strong>3 pkt</strong><span>dokładny wynik, np. typ 2:1 i wynik 2:1</span></div>
-              <div class="rule-card"><strong>1 pkt</strong><span>trafione rozstrzygnięcie: zwycięstwo, remis albo porażka</span></div>
+              <div class="rule-card"><strong>1 pkt</strong><span>trafione rozstrzygnięcie; w pucharowej: trafiony awans</span></div>
               <div class="rule-card"><strong>0 pkt</strong><span>nietrafiony typ</span></div>
             </div>
             <h3>Blokada typów</h3>
             <p>Typ można dodać lub zmienić tylko przed godziną rozpoczęcia meczu. Po starcie meczu aplikacja blokuje pola, a Supabase blokuje zapis w bazie.</p>
             <h3>Widoczność typów</h3>
             <p>Przed startem meczu widzisz swoje typy. Typy innych graczy pokazują się po rozpoczęciu meczu.</p>
+            <h3>Faza pucharowa</h3>
+            <p>W drabince wpisujesz wynik oraz wybierasz drużynę, która awansuje. Jest to potrzebne przy remisach po dogrywce i karnych.</p>
           </div>
         </section>
       </main>
