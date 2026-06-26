@@ -159,6 +159,9 @@ function bindEvents() {
     renderAll();
   });
 
+  const autoBtn = $('#autoBracketBtn');
+  if (autoBtn) autoBtn.addEventListener('click', autoFillBracket);
+
   $$('.tab').forEach(btn => btn.addEventListener('click', () => {
     const view = btn.dataset.view;
     $$('.tab').forEach(b => b.classList.remove('active'));
@@ -560,7 +563,278 @@ async function saveResult(event) {
   }
   const { error } = await client.from('matches').update(update).eq('id', matchId);
   if (error) alert('Nie udało się zapisać wyniku: ' + error.message);
-  else await refreshAfterRealtime();
+  else {
+    const savedMatch = { ...match, ...update };
+    await propagateKnockoutWinner(savedMatch);
+    await loadAllData();
+    renderAll();
+  }
+}
+
+const THIRD_PLACE_ASSIGNMENTS = {
+  'BEFHIJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3I', '1I': '3H', '1K': '3L', '1L': '3K' },
+  'BEFGIJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3I', '1I': '3G', '1K': '3L', '1L': '3K' },
+  'BEFGHJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3H', '1I': '3G', '1K': '3L', '1L': '3K' },
+  'BEFGHIKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3F', '1G': '3I', '1I': '3H', '1K': '3L', '1L': '3K' },
+  'BEFGHIJL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3H', '1I': '3G', '1K': '3L', '1L': '3I' },
+  'BEFGHIJK': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3H', '1I': '3G', '1K': '3I', '1L': '3K' },
+  'BDEFIJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3I', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'BDEFHJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3H', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'BDEFHIKL': { '1A': '3E', '1B': '3I', '1D': '3B', '1E': '3D', '1G': '3H', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'BDEFHIJL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3H', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'BDEFHIJK': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3H', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'BDEFGJKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3J', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'BDEFGIKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3I', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'BDEFGIJL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3J', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'BDEFGIJK': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3J', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'BDEFGHKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3H', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'BDEFGHJL': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3J', '1I': '3F', '1K': '3L', '1L': '3E' },
+  'BDEFGHJK': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3J', '1I': '3F', '1K': '3E', '1L': '3K' },
+  'BDEFGHIL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3H', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'BDEFGHIK': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3H', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'BDEFGHIJ': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3J', '1I': '3F', '1K': '3E', '1L': '3I' },
+  'ABEFIJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3A', '1G': '3I', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABEFHJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3H', '1K': '3L', '1L': '3K' },
+  'ABEFHIKL': { '1A': '3E', '1B': '3I', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3H', '1K': '3L', '1L': '3K' },
+  'ABEFHIJL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3H', '1K': '3L', '1L': '3I' },
+  'ABEFHIJK': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3H', '1K': '3I', '1L': '3K' },
+  'ABEFGJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3G', '1K': '3L', '1L': '3K' },
+  'ABEFGIKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3A', '1G': '3I', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABEFGIJL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3G', '1K': '3L', '1L': '3I' },
+  'ABEFGIJK': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3G', '1K': '3I', '1L': '3K' },
+  'ABEFGHKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3H', '1K': '3L', '1L': '3K' },
+  'ABEFGHJL': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3G', '1K': '3L', '1L': '3E' },
+  'ABEFGHJK': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3G', '1K': '3E', '1L': '3K' },
+  'ABEFGHIL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3H', '1K': '3L', '1L': '3I' },
+  'ABEFGHIK': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3H', '1K': '3I', '1L': '3K' },
+  'ABEFGHIJ': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3F', '1G': '3A', '1I': '3G', '1K': '3E', '1L': '3I' },
+  'ABDEFIJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABDEFIKL': { '1A': '3E', '1B': '3I', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABDEFIJL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'ABDEFIJK': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'ABDEFHKL': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABDEFHJL': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3E' },
+  'ABDEFHJK': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3K' },
+  'ABDEFHIL': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'ABDEFHIK': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'ABDEFHIJ': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3I' },
+  'ABDEFGKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABDEFGJL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3J' },
+  'ABDEFGJK': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3J', '1L': '3K' },
+  'ABDEFGIL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'ABDEFGIK': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'ABDEFGIJ': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3J' },
+  'ABDEFGHL': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3E' },
+  'ABDEFGHK': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3K' },
+  'ABDEFGHJ': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3J' },
+  'ABDEFGHI': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3I' },
+  'ABCEFJKL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABCEFIKL': { '1A': '3E', '1B': '3I', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABCEFIJL': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'ABCEFIJK': { '1A': '3E', '1B': '3J', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'ABCEFHKL': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABCEFHJL': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3E' },
+  'ABCEFHJK': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3K' },
+  'ABCEFHIL': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'ABCEFHIK': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'ABCEFHIJ': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3I' },
+  'ABCEFGKL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABCEFGJL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3J' },
+  'ABCEFGJK': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3J', '1L': '3K' },
+  'ABCEFGIL': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'ABCEFGIK': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'ABCEFGIJ': { '1A': '3E', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3J' },
+  'ABCEFGHL': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3E' },
+  'ABCEFGHK': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3K' },
+  'ABCEFGHJ': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3J' },
+  'ABCEFGHI': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3I' },
+  'ABCDEFKL': { '1A': '3C', '1B': '3E', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3K' },
+  'ABCDEFJL': { '1A': '3C', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3E' },
+  'ABCDEFJK': { '1A': '3C', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3K' },
+  'ABCDEFIL': { '1A': '3C', '1B': '3E', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3I' },
+  'ABCDEFIK': { '1A': '3C', '1B': '3E', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3I', '1L': '3K' },
+  'ABCDEFIJ': { '1A': '3C', '1B': '3J', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3I' },
+  'ABCDEFHL': { '1A': '3H', '1B': '3F', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3D', '1K': '3L', '1L': '3E' },
+  'ABCDEFHK': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3D', '1L': '3K' },
+  'ABCDEFHJ': { '1A': '3H', '1B': '3J', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3D', '1L': '3E' },
+  'ABCDEFHI': { '1A': '3H', '1B': '3E', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3D', '1L': '3I' },
+  'ABCDEFGL': { '1A': '3C', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3L', '1L': '3E' },
+  'ABCDEFGK': { '1A': '3C', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3K' },
+  'ABCDEFGJ': { '1A': '3C', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3J' },
+  'ABCDEFGI': { '1A': '3C', '1B': '3G', '1D': '3B', '1E': '3D', '1G': '3A', '1I': '3F', '1K': '3E', '1L': '3I' },
+  'ABCDEFGH': { '1A': '3H', '1B': '3G', '1D': '3B', '1E': '3C', '1G': '3A', '1I': '3F', '1K': '3D', '1L': '3E' }
+};
+
+
+function setAutoBracketMessage(text, ok = false) {
+  const el = $('#autoBracketMessage');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.color = ok ? 'var(--ok)' : 'var(--danger)';
+}
+
+function buildGroupTables() {
+  const incomplete = [];
+  const tables = {};
+  for (const group of GROUP_KEYS) {
+    const teams = (window.LZ_GROUPS[group] || []).map(team => ({
+      group, team, played: 0, points: 0, gf: 0, ga: 0, gd: 0, wins: 0, draws: 0, losses: 0
+    }));
+    const byTeam = new Map(teams.map(t => [t.team, t]));
+    const matches = state.matches.filter(m => m.stage === 'group' && m.group_code === group);
+    for (const match of matches) {
+      if (!isSettled(match)) {
+        incomplete.push(`#${match.match_no} ${match.home_team} - ${match.away_team}`);
+        continue;
+      }
+      const home = byTeam.get(match.home_team);
+      const away = byTeam.get(match.away_team);
+      if (!home || !away) continue;
+      const hs = Number(match.home_score);
+      const as = Number(match.away_score);
+      home.played += 1; away.played += 1;
+      home.gf += hs; home.ga += as; home.gd = home.gf - home.ga;
+      away.gf += as; away.ga += hs; away.gd = away.gf - away.ga;
+      if (hs > as) { home.points += 3; home.wins += 1; away.losses += 1; }
+      else if (hs < as) { away.points += 3; away.wins += 1; home.losses += 1; }
+      else { home.points += 1; away.points += 1; home.draws += 1; away.draws += 1; }
+    }
+    teams.sort(compareStandingRows);
+    tables[group] = teams;
+  }
+  return { tables, incomplete };
+}
+
+function compareStandingRows(a, b) {
+  return (b.points - a.points) || (b.gd - a.gd) || (b.gf - a.gf) || a.team.localeCompare(b.team, 'pl');
+}
+
+function rankingKey(row) {
+  return `${row.points}:${row.gd}:${row.gf}`;
+}
+
+function hasUnresolvedGroupTies(tables) {
+  const problems = [];
+  for (const group of GROUP_KEYS) {
+    const rows = tables[group] || [];
+    for (let i = 0; i < rows.length - 1; i++) {
+      if (rankingKey(rows[i]) === rankingKey(rows[i + 1])) {
+        problems.push(`Grupa ${group}: ${rows[i].team} i ${rows[i + 1].team}`);
+      }
+    }
+  }
+  return problems;
+}
+
+function seedToTeam(seed, tables) {
+  if (!seed) return 'TBD';
+  const clean = String(seed).trim();
+  const m = clean.match(/^([123])([A-L])$/);
+  if (!m) return clean;
+  const place = Number(m[1]) - 1;
+  const group = m[2];
+  return tables[group]?.[place]?.team || clean;
+}
+
+function getThirdAssignment(tables) {
+  const thirds = GROUP_KEYS.map(group => tables[group]?.[2]).filter(Boolean).sort(compareStandingRows);
+  if (thirds.length < 12) throw new Error('Brakuje pełnych tabel grup.');
+  const cutoffA = thirds[7];
+  const cutoffB = thirds[8];
+  if (cutoffA && cutoffB && rankingKey(cutoffA) === rankingKey(cutoffB)) {
+    throw new Error(`Remis na granicy najlepszych trzecich miejsc: ${cutoffA.team} i ${cutoffB.team}. Tu trzeba ręcznie potwierdzić oficjalną kolejność FIFA.`);
+  }
+  const qualifiedGroups = thirds.slice(0, 8).map(row => row.group).sort().join('');
+  const assignment = THIRD_PLACE_ASSIGNMENTS[qualifiedGroups];
+  if (!assignment) {
+    throw new Error(`Brak oficjalnej kombinacji dla trzecich miejsc: ${qualifiedGroups}. Nie wpisuję drabinki, żeby nie zrobić błędu.`);
+  }
+  return { thirds, qualifiedGroups, assignment };
+}
+
+function bracketSeedsForRoundOf32(assignment) {
+  return {
+    73: ['2A', '2B'],
+    74: ['1E', assignment['1E']],
+    75: ['1F', '2C'],
+    76: ['1C', '2F'],
+    77: ['1I', assignment['1I']],
+    78: ['2E', '2I'],
+    79: ['1A', assignment['1A']],
+    80: ['1L', assignment['1L']],
+    81: ['1D', assignment['1D']],
+    82: ['1G', assignment['1G']],
+    83: ['2K', '2L'],
+    84: ['1H', '2J'],
+    85: ['1B', assignment['1B']],
+    86: ['1J', '2H'],
+    87: ['1K', assignment['1K']],
+    88: ['2D', '2G']
+  };
+}
+
+async function autoFillBracket() {
+  if (!state.profile?.is_admin) return;
+  setAutoBracketMessage('Liczenie tabel i uzupełnianie drabinki...', true);
+  try {
+    const { tables, incomplete } = buildGroupTables();
+    if (incomplete.length) {
+      throw new Error(`Najpierw wpisz wszystkie wyniki fazy grupowej. Brakuje: ${incomplete.slice(0, 5).join(', ')}${incomplete.length > 5 ? '...' : ''}`);
+    }
+    const tieProblems = hasUnresolvedGroupTies(tables);
+    if (tieProblems.length) {
+      throw new Error(`Jest idealny remis po punktach, bilansie i golach. Nie zgaduję fair play/rankingu: ${tieProblems.slice(0, 4).join('; ')}`);
+    }
+    const { qualifiedGroups, assignment } = getThirdAssignment(tables);
+    const seeds = bracketSeedsForRoundOf32(assignment);
+    const updates = Object.entries(seeds).map(([matchNo, [homeSeed, awaySeed]]) => ({
+      match_no: Number(matchNo),
+      home_team: seedToTeam(homeSeed, tables),
+      away_team: seedToTeam(awaySeed, tables)
+    }));
+    for (const update of updates) {
+      const { error } = await client.from('matches')
+        .update({ home_team: update.home_team, away_team: update.away_team })
+        .eq('match_no', update.match_no);
+      if (error) throw error;
+    }
+    await loadAllData();
+    await propagateExistingKnockoutResults();
+    await loadAllData();
+    renderAll();
+    setAutoBracketMessage(`Gotowe. Drabinka 73–88 uzupełniona. Trzecie miejsca z grup: ${qualifiedGroups}.`, true);
+  } catch (error) {
+    console.error(error);
+    setAutoBracketMessage(error.message || 'Nie udało się uzupełnić drabinki.');
+    alert(error.message || 'Nie udało się uzupełnić drabinki.');
+  }
+}
+
+async function propagateKnockoutWinner(match) {
+  if (!isKnockout(match) || !isSettled(match)) return;
+  const side = matchWinnerSide(match);
+  if (!side) return;
+  const winnerName = side === 'home' ? plainTeam(match, 'home') : plainTeam(match, 'away');
+  const loserName = side === 'home' ? plainTeam(match, 'away') : plainTeam(match, 'home');
+  const tasks = [];
+  if (match.next_match_no && match.winner_to_slot && winnerName && winnerName !== 'TBD') {
+    const field = match.winner_to_slot === 'home' ? 'home_team' : 'away_team';
+    tasks.push(client.from('matches').update({ [field]: winnerName }).eq('match_no', match.next_match_no));
+  }
+  if (match.loser_next_match_no && match.loser_to_slot && loserName && loserName !== 'TBD') {
+    const field = match.loser_to_slot === 'home' ? 'home_team' : 'away_team';
+    tasks.push(client.from('matches').update({ [field]: loserName }).eq('match_no', match.loser_next_match_no));
+  }
+  const results = await Promise.all(tasks);
+  const failed = results.find(r => r.error);
+  if (failed) throw failed.error;
+}
+
+async function propagateExistingKnockoutResults() {
+  const settledKo = state.matches
+    .filter(m => isKnockout(m) && isSettled(m))
+    .sort((a, b) => a.match_no - b.match_no);
+  for (const match of settledKo) await propagateKnockoutWinner(match);
 }
 
 function parseOptionalInt(value) {

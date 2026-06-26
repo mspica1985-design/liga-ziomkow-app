@@ -303,3 +303,8 @@ footer { color: var(--muted); text-align: center; padding: 26px 0 0; }
   .tabs { grid-template-columns: repeat(3, 1fr); }
   .admin-extra-grid { grid-template-columns: 1fr; }
 }
+
+
+.auto-bracket-panel { margin-bottom: 14px; display: grid; gap: 12px; }
+.auto-bracket-panel h3 { margin: 2px 0 6px; }
+.auto-bracket-panel .message { min-height: 20px; }

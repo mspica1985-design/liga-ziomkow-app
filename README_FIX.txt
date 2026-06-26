@@ -1,0 +1,1 @@
+Wrzuć do GitHuba tylko te 3 pliki: index.html, app.js, styles.css. GitHub ma nadpisać stare pliki. Potem Commit changes i poczekaj na Vercel. Przycisk Uzupełnij automatycznie pojawi się w zakładce Drabinka tylko po zalogowaniu jako admin/Marcin.
