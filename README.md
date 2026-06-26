@@ -1,30 +1,20 @@
-# Liga Ziomków v2 — drabinka Mundialu 2026
+# Liga Ziomków v4.1 — Auto Drabinka na bieżąco
 
-Ta paczka dodaje fazę pucharową do istniejącej strony `ligaziomkow.pl` bez kasowania obecnych danych.
+Ta paczka dodaje automatyczne uzupełnianie drabinki na bieżąco — po zakończeniu każdej grupy można podmienić znane miejsca 1A, 2A itd., bez czekania na koniec całej fazy grupowej.
 
-## Najważniejsze
+Co robi:
+- liczy tabele grup A–L,
+- ustala 1A, 2A i 3A itd.,
+- wybiera 8 najlepszych drużyn z trzecich miejsc,
+- używa tabeli kombinacji FIFA dla wariantów najlepszych trzecich miejsc,
+- podmienia mecze 73–88 z placeholderów na nazwy drużyn,
+- po wpisaniu wyniku meczu pucharowego przenosi zwycięzcę dalej,
+- po półfinałach przenosi przegranych do meczu o 3. miejsce.
 
-Nie uruchamiaj żadnych komend `drop table`, `truncate` ani `delete`. Ta aktualizacja dodaje tylko kolumny i mecze 73–104.
+Wrzucasz pliki strony do GitHuba, czekasz na Vercel, logujesz się jako Marcin i po zakończeniu dowolnej grupy klikasz Drabinka → Aktualizuj automatycznie. Najlepsze trzecie miejsca zostaną dodane dopiero po zakończeniu wszystkich grup.
 
-## Kolejność wdrożenia
+Jeżeli po punktach, bilansie i golach jest idealny remis, aplikacja nie zgaduje fair play/rankingu. Pokaże komunikat i trzeba ręcznie potwierdzić kolejność.
 
-1. W Supabase zrób kontrolny backup/liczniki.
-2. W SQL Editor odpal `sql/01_knockout_schema_update.sql`.
-3. W SQL Editor odpal `sql/02_seed_knockout_matches.sql`.
-4. Wrzuć pliki strony z tej paczki do GitHuba i nadpisz stare.
-5. Poczekaj na deploy Vercel.
-6. Otwórz `https://ligaziomkow.pl` i sprawdź zakładkę `Drabinka`.
 
-## Co dodaje wersja v2
-
-- zakładkę `Drabinka`,
-- mecze 73–104,
-- typowanie awansu w fazie pucharowej,
-- wpisywanie awansu przez admina,
-- opcjonalne karne,
-- ranking v2: 3 pkt za dokładny wynik, 1 pkt za trafione rozstrzygnięcie lub awans,
-- zachowanie blokady typów po rozpoczęciu meczu.
-
-## Uwaga o trzecich miejscach
-
-W meczach 1/32 z trzecimi miejscami użyte są seed-y typu `3A/B/C/D/F`. Konkretna drużyna zależy od tego, które osiem trzecich miejsc awansuje. Możesz później ręcznie podmienić `home_team`/`away_team` w Supabase, zostawiając `home_seed`/`away_seed` jako informację o źródle miejsca.
+## v4.1
+Poprawka komunikatów i logiki przy częściowej aktualizacji drabinki. Przycisk działa po każdej grupie z kompletem wyników i nie straszy wymaganiem zakończenia całego turnieju dla miejsc 1/2. Trzecie miejsca nadal czekają na komplet grup.
