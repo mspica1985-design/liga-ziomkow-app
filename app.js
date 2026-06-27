@@ -3,8 +3,8 @@ const client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey
 
 const ROUND_LABELS = {
   group: 'Faza grupowa',
-  round_of_32: '1/32 finału',
-  round_of_16: '1/16 finału',
+  round_of_32: '1/16 finału',
+  round_of_16: '1/8 finału',
   quarterfinal: 'Ćwierćfinał',
   semifinal: 'Półfinał',
   third_place: 'Mecz o 3. miejsce',

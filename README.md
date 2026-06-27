@@ -18,3 +18,7 @@ Jeżeli po punktach, bilansie i golach jest idealny remis, aplikacja nie zgaduje
 
 ## v4.1
 Poprawka komunikatów i logiki przy częściowej aktualizacji drabinki. Przycisk działa po każdej grupie z kompletem wyników i nie straszy wymaganiem zakończenia całego turnieju dla miejsc 1/2. Trzecie miejsca nadal czekają na komplet grup.
+
+
+## v4.2
+Poprawka nazewnictwa po polsku: pierwsza runda pucharowa to 1/16 finału, kolejna to 1/8 finału. Wartości techniczne `round_of_32` i `round_of_16` zostają w bazie tylko jako kody wewnętrzne.
