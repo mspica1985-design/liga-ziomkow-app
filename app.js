@@ -742,14 +742,42 @@ function hasUnresolvedGroupTies(tables) {
 }
 
 function seedToTeam(seed, tables, completedGroups = null) {
-  if (!seed) return 'TBD';
+  const resolved = resolveSeed(seed, tables, completedGroups);
+  return resolved.team;
+}
+
+function seedTieProblem(rows, place) {
+  const row = rows?.[place];
+  if (!row) return null;
+  const prev = rows[place - 1];
+  const next = rows[place + 1];
+  if (prev && rankingKey(prev) === rankingKey(row)) return `${prev.team} / ${row.team}`;
+  if (next && rankingKey(next) === rankingKey(row)) return `${row.team} / ${next.team}`;
+  return null;
+}
+
+function resolveSeed(seed, tables, completedGroups = null) {
+  if (!seed) return { team: null, ok: false, reason: 'pusty slot' };
   const clean = String(seed).trim();
   const m = clean.match(/^([123])([A-L])$/);
-  if (!m) return clean;
+  if (!m) return { team: clean, ok: true, reason: 'gotowa nazwa' };
+
   const place = Number(m[1]) - 1;
   const group = m[2];
-  if (completedGroups && !completedGroups.has(group)) return null;
-  return tables[group]?.[place]?.team || clean;
+  if (completedGroups && !completedGroups.has(group)) {
+    return { team: null, ok: false, reason: `${clean}: grupa ${group} nie ma jeszcze kompletu wyników` };
+  }
+
+  const rows = tables[group] || [];
+  const row = rows[place];
+  if (!row) return { team: null, ok: false, reason: `${clean}: brak tabeli grupy ${group}` };
+
+  const tie = seedTieProblem(rows, place);
+  if (tie) {
+    return { team: null, ok: false, reason: `${clean}: remis w tabeli (${tie})` };
+  }
+
+  return { team: row.team, ok: true, reason: '' };
 }
 
 function getThirdAssignment(tables) {
@@ -817,23 +845,35 @@ function groupsFromSeeds(seedMap) {
   return [...new Set(Object.values(seedMap).flat().filter(Boolean).map(seed => String(seed).match(/^[123]([A-L])$/)?.[1]).filter(Boolean))];
 }
 
-async function applyRoundOf32SeedMap(seedMap, tables, completedGroups, fullMode = false) {
+async function applyRoundOf32SeedMap(seedMap, tables, completedGroups) {
   const changed = [];
   const skipped = [];
+  const applied = [];
 
   for (const [matchNoText, [homeSeed, awaySeed]] of Object.entries(seedMap)) {
     const matchNo = Number(matchNoText);
     const update = {};
+
     if (homeSeed) {
-      const team = seedToTeam(homeSeed, tables, fullMode ? null : completedGroups);
-      if (team) update.home_team = team;
-      else skipped.push(`${homeSeed}`);
+      const resolved = resolveSeed(homeSeed, tables, completedGroups);
+      if (resolved.ok && resolved.team) {
+        update.home_team = resolved.team;
+        applied.push(`${homeSeed} → ${resolved.team}`);
+      } else {
+        skipped.push(resolved.reason || `${homeSeed}: jeszcze nie można ustalić`);
+      }
     }
+
     if (awaySeed) {
-      const team = seedToTeam(awaySeed, tables, fullMode ? null : completedGroups);
-      if (team) update.away_team = team;
-      else skipped.push(`${awaySeed}`);
+      const resolved = resolveSeed(awaySeed, tables, completedGroups);
+      if (resolved.ok && resolved.team) {
+        update.away_team = resolved.team;
+        applied.push(`${awaySeed} → ${resolved.team}`);
+      } else {
+        skipped.push(resolved.reason || `${awaySeed}: jeszcze nie można ustalić`);
+      }
     }
+
     if (Object.keys(update).length) {
       const { error } = await client.from('matches').update(update).eq('match_no', matchNo);
       if (error) throw error;
@@ -841,12 +881,12 @@ async function applyRoundOf32SeedMap(seedMap, tables, completedGroups, fullMode 
     }
   }
 
-  return { changed, skipped };
+  return { changed, skipped: [...new Set(skipped)], applied: [...new Set(applied)] };
 }
 
 async function autoFillBracket() {
   if (!state.profile?.is_admin) return;
-  setAutoBracketMessage('Sprawdzam, które miejsca w drabince można już bezpiecznie uzupełnić...', true);
+  setAutoBracketMessage('Sprawdzam znane miejsca w drabince...', true);
   try {
     const { tables, completedGroups } = buildGroupTables();
 
@@ -855,45 +895,42 @@ async function autoFillBracket() {
         const missing = state.matches.filter(m => m.stage === 'group' && m.group_code === group && !isSettled(m)).length;
         return missing === 0 ? null : `${group}: brakuje ${missing}`;
       }).filter(Boolean).slice(0, 6).join(', ');
-      const msg = `Na razie nie ma żadnej grupy z kompletem wyników. Mogę wpisywać na bieżąco, ale grupa musi mieć wpisane wszystkie swoje mecze. ${missingByGroup ? 'Przykład braków: ' + missingByGroup + '.' : ''}`;
+      const msg = `Na razie żadna grupa nie ma kompletu wyników w aplikacji. Uzupełniam na bieżąco po zamknięciu każdej grupy. ${missingByGroup ? 'Braki: ' + missingByGroup + '.' : ''}`;
       setAutoBracketMessage(msg, false);
       return;
     }
 
     const completed = [...completedGroups].sort();
-    const tieProblems = groupTieProblems(tables, completed);
-    const blockedGroups = new Set(tieProblems.map(txt => txt.match(/Grupa ([A-L])/i)?.[1]).filter(Boolean));
-    const safeCompleted = new Set(completed.filter(group => !blockedGroups.has(group)));
+    const partial = await applyRoundOf32SeedMap(fixedRoundOf32Seeds(), tables, completedGroups);
+    const changedMatches = [...new Set(partial.changed)].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
 
-    if (!safeCompleted.size) {
-      const msg = `Zakończone grupy mają remis w tabeli według prostych kryteriów aplikacji. Nie zgaduję kolejności: ${tieProblems.slice(0, 4).join('; ')}. Jeśli FIFA już potwierdziła kolejność, wpiszemy tę grupę ręcznie albo dorobimy ręczną korektę.`;
-      setAutoBracketMessage(msg, false);
-      return;
+    let message = `Zrobione. Sprawdziłem zakończone grupy: ${completed.join(', ')}. `;
+    message += `Zmienione mecze: ${changedMatches.join(', ') || 'brak nowych zmian'}.`;
+
+    if (partial.applied.length) {
+      message += ` Wpisane miejsca: ${partial.applied.slice(0, 12).join(', ')}${partial.applied.length > 12 ? '...' : ''}.`;
     }
 
-    const partial = await applyRoundOf32SeedMap(fixedRoundOf32Seeds(), tables, safeCompleted, false);
-    const changedMatches = [...new Set(partial.changed)].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
-    let message = `Zrobione. Zaktualizowałem pewne miejsca z zakończonych grup: ${[...safeCompleted].sort().join(', ')}. Zmienione mecze: ${changedMatches.join(', ') || 'brak nowych zmian'}.`;
-
-    if (tieProblems.length) {
-      message += ` Pominąłem grupy z remisem wymagającym potwierdzenia: ${tieProblems.slice(0, 3).join('; ')}.`;
+    if (partial.skipped.length) {
+      message += ` Pominięte sloty: ${partial.skipped.slice(0, 6).join('; ')}${partial.skipped.length > 6 ? '...' : ''}.`;
     }
 
     if (completedGroups.size === GROUP_KEYS.length) {
-      const allTieProblems = hasUnresolvedGroupTies(tables);
-      if (allTieProblems.length) {
-        message += ` Trzecie miejsca nieuzupełnione — są remisy wymagające ręcznego potwierdzenia: ${allTieProblems.slice(0, 3).join('; ')}.`;
-      } else {
+      try {
         const { qualifiedGroups, assignment } = getThirdAssignment(tables);
         const fullSeeds = bracketSeedsForRoundOf32(assignment);
-        await applyRoundOf32SeedMap(fullSeeds, tables, new Set(GROUP_KEYS), true);
-        message += ` Wszystkie grupy są zakończone, więc uzupełniłem też najlepsze trzecie miejsca. Awans trzecich z grup: ${qualifiedGroups}.`;
+        const full = await applyRoundOf32SeedMap(fullSeeds, tables, new Set(GROUP_KEYS));
+        message += ` Wszystkie grupy są zakończone, więc sprawdziłem też najlepsze trzecie miejsca. Awans trzecich z grup: ${qualifiedGroups}.`;
+        if (full.applied.length) message += ` Dodatkowo wpisane: ${full.applied.slice(0, 10).join(', ')}${full.applied.length > 10 ? '...' : ''}.`;
+        if (full.skipped.length) message += ` Do ręcznego potwierdzenia: ${full.skipped.slice(0, 5).join('; ')}.`;
+      } catch (thirdError) {
+        message += ` Trzecie miejsca jeszcze nie wpisane automatycznie: ${thirdError.message}`;
       }
       await loadAllData();
       await propagateExistingKnockoutResults();
     } else {
       const missing = GROUP_KEYS.filter(g => !completedGroups.has(g));
-      message += ` Trzecie miejsca zostają na razie jako placeholdery, bo do ich oficjalnego przydziału potrzeba kompletu 12 grup. Brakuje grup: ${missing.join(', ')}.`;
+      message += ` Trzecie miejsca zostają na razie jako placeholdery, bo ich oficjalny przydział będzie pewny dopiero po wszystkich 12 grupach. Brakuje grup: ${missing.join(', ')}.`;
     }
 
     await loadAllData();
@@ -905,6 +942,7 @@ async function autoFillBracket() {
     alert(error.message || 'Nie udało się zaktualizować drabinki.');
   }
 }
+
 
 async function propagateKnockoutWinner(match) {
   if (!isKnockout(match) || !isSettled(match)) return;
