@@ -243,6 +243,7 @@ function renderAll() {
   renderPredictions();
   renderSchedule();
   renderBracket();
+  renderManualBracketEditor();
   renderAdmin();
   renderRecentSettled();
 }
@@ -671,6 +672,79 @@ function setAutoBracketMessage(text, ok = false) {
   if (!el) return;
   el.textContent = text || '';
   el.style.color = ok ? 'var(--ok)' : 'var(--danger)';
+}
+
+function setManualBracketMessage(text, ok = false) {
+  const el = $('#manualBracketMessage');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.color = ok ? 'var(--ok)' : 'var(--danger)';
+}
+
+function manualTeamOptions(matches = []) {
+  const baseTeams = Object.values(window.LZ_GROUPS || {}).flat();
+  const seeds = [];
+  for (const group of GROUP_KEYS) {
+    seeds.push(`1${group}`, `2${group}`, `3${group}`);
+  }
+  const current = matches.flatMap(m => [m.home_team, m.away_team, m.home_seed, m.away_seed]).filter(Boolean);
+  return [...new Set([...baseTeams, ...current, ...seeds])].sort((a, b) => String(a).localeCompare(String(b), 'pl'));
+}
+
+function renderManualBracketEditor() {
+  const container = $('#manualBracketEditor');
+  if (!container) return;
+  if (!state.profile?.is_admin) {
+    container.innerHTML = '';
+    return;
+  }
+  const matches = state.matches
+    .filter(m => Number(m.match_no) >= 73 && Number(m.match_no) <= 88)
+    .sort((a, b) => Number(a.match_no) - Number(b.match_no));
+  if (!matches.length) {
+    container.innerHTML = '<p class="muted">Brak meczów 73–88 w bazie.</p>';
+    return;
+  }
+  const options = manualTeamOptions(matches).map(team => `<option value="${escapeHtml(team)}"></option>`).join('');
+  container.innerHTML = `
+    <datalist id="manualTeamOptions">${options}</datalist>
+    ${matches.map(match => `
+      <div class="manual-match-row">
+        <div class="manual-match-title">
+          <strong>#${match.match_no}</strong>
+          <span>${ROUND_LABELS[match.stage] || match.stage}</span>
+          <small>${escapeHtml(match.home_seed || '')} vs ${escapeHtml(match.away_seed || '')}</small>
+        </div>
+        <input list="manualTeamOptions" id="manual-home-${match.id}" value="${escapeHtml(match.home_team || '')}" placeholder="${escapeHtml(match.home_seed || 'Gospodarz')}" />
+        <span class="manual-vs">vs</span>
+        <input list="manualTeamOptions" id="manual-away-${match.id}" value="${escapeHtml(match.away_team || '')}" placeholder="${escapeHtml(match.away_seed || 'Gość')}" />
+        <button class="ghost save-manual-pair" data-match="${match.id}" type="button">Zapisz</button>
+      </div>
+    `).join('')}`;
+  $$('.save-manual-pair').forEach(btn => btn.addEventListener('click', saveManualPair));
+}
+
+async function saveManualPair(event) {
+  if (!state.profile?.is_admin) return;
+  const matchId = event.currentTarget.dataset.match;
+  const match = state.matches.find(m => m.id === matchId);
+  if (!match) return;
+  const homeRaw = $(`#manual-home-${matchId}`)?.value.trim() || '';
+  const awayRaw = $(`#manual-away-${matchId}`)?.value.trim() || '';
+  const update = {
+    home_team: homeRaw && homeRaw.toUpperCase() !== 'TBD' ? homeRaw : null,
+    away_team: awayRaw && awayRaw.toUpperCase() !== 'TBD' ? awayRaw : null
+  };
+  setManualBracketMessage(`Zapisuję parę meczu #${match.match_no}...`, true);
+  const { error } = await client.from('matches').update(update).eq('id', matchId);
+  if (error) {
+    setManualBracketMessage('Nie udało się zapisać pary: ' + error.message);
+    alert('Nie udało się zapisać pary: ' + error.message);
+    return;
+  }
+  await loadAllData();
+  renderAll();
+  setManualBracketMessage(`Zapisane: mecz #${match.match_no}.`, true);
 }
 
 function buildGroupTables() {

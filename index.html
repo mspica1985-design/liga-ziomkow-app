@@ -119,8 +119,17 @@
               <h3>Aktualizuj drabinkę na bieżąco</h3>
               <p class="muted">Klikaj na bieżąco. System podmieni wszystko, co jest już pewne: 1. i 2. miejsce z zakończonych grup. Sloty z trzecich miejsc zostaną jako placeholdery, dopóki nie będzie znane 8 najlepszych trzecich drużyn.</p>
             </div>
-            <button id="autoBracketBtn" class="gold" type="button">Aktualizuj automatycznie</button>
+            <button id="autoBracketBtn" class="gold" type="button">Aktualizuj znane miejsca</button>
             <div id="autoBracketMessage" class="message"></div>
+          </div>
+          <div class="panel manual-bracket-panel admin-only hidden">
+            <div>
+              <p class="eyebrow">Ręczna korekta</p>
+              <h3>Wpisz pary samodzielnie</h3>
+              <p class="muted">Użyj tego, gdy oficjalnie wiadomo już, kto gra w danym meczu, a automat jeszcze tego nie podstawił. Możesz wpisać też drużyny z 3. miejsc.</p>
+            </div>
+            <div id="manualBracketMessage" class="message"></div>
+            <div id="manualBracketEditor" class="manual-bracket-editor"></div>
           </div>
           <div id="roundFiltersDrabinka" class="filters"></div>
           <div id="bracketMatches" class="bracket-list"></div>
