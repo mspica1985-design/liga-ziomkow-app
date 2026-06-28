@@ -57,6 +57,10 @@ function isSettled(match) {
   return match.home_score !== null && match.away_score !== null;
 }
 
+function hasKickoffPassed(match) {
+  return match?.kickoff_at && Date.now() >= new Date(match.kickoff_at).getTime();
+}
+
 function resultSign(home, away) {
   if (home > away) return 1;
   if (home < away) return -1;
@@ -429,7 +433,7 @@ function predictionCard(match) {
 function winnerPickControl(match, pred, disabled = '') {
   const home = plainTeam(match, 'home');
   const away = plainTeam(match, 'away');
-  return `<label class="winner-picker">Kto awansuje?
+  return `<label class="winner-picker">Twój typ awansu — nie uzupełnia drabinki
     <select id="pred-winner-${match.id}" ${disabled}>
       <option value="">Wybierz drużynę</option>
       <option value="home" ${pred?.winner_pick === 'home' ? 'selected' : ''}>${escapeHtml(home)}</option>
@@ -538,6 +542,10 @@ async function savePrediction(event) {
 async function saveResult(event) {
   const matchId = event.currentTarget.dataset.match;
   const match = state.matches.find(m => m.id === matchId);
+  if (isKnockout(match) && !hasKickoffPassed(match)) {
+    alert('Nie rozliczam meczu pucharowego przed jego startem. Typ zwycięzcy przed meczem zapisuje się tylko jako typ gracza i nie może uzupełniać kolejnej rundy. Po meczu wejdź w Wyniki, wpisz oficjalny wynik i wtedy zwycięzca przejdzie dalej.');
+    return;
+  }
   const homeRaw = $(`#res-home-${matchId}`).value;
   const awayRaw = $(`#res-away-${matchId}`).value;
   const home = parseInt(homeRaw, 10);
@@ -565,7 +573,7 @@ async function saveResult(event) {
   const { error } = await client.from('matches').update(update).eq('id', matchId);
   if (error) alert('Nie udało się zapisać wyniku: ' + error.message);
   else {
-    const savedMatch = { ...match, ...update };
+    const savedMatch = { ...match, ...update, _officialResultSaved: true };
     await propagateKnockoutWinner(savedMatch);
     await loadAllData();
     renderAll();
@@ -1001,7 +1009,8 @@ async function autoFillBracket() {
         message += ` Trzecie miejsca jeszcze nie wpisane automatycznie: ${thirdError.message}`;
       }
       await loadAllData();
-      await propagateExistingKnockoutResults();
+      // Nie przenosimy zwycięzców po kliknięciu auto-drabinki.
+      // Kolejna runda aktualizuje się tylko po zapisaniu oficjalnego wyniku w panelu Wyniki.
     } else {
       const missing = GROUP_KEYS.filter(g => !completedGroups.has(g));
       message += ` Trzecie miejsca zostają na razie jako placeholdery, bo ich oficjalny przydział będzie pewny dopiero po wszystkich 12 grupach. Brakuje grup: ${missing.join(', ')}.`;
@@ -1019,7 +1028,11 @@ async function autoFillBracket() {
 
 
 async function propagateKnockoutWinner(match) {
+  // Bezpiecznik: zwycięzca może przejść dalej WYŁĄCZNIE po zapisie oficjalnego wyniku
+  // z panelu admina „Wyniki”. Zwykły typ gracza nigdy nie aktualizuje kolejnej rundy.
+  if (!match?._officialResultSaved) return;
   if (!isKnockout(match) || !isSettled(match)) return;
+  if (!hasKickoffPassed(match)) return;
   const side = matchWinnerSide(match);
   if (!side) return;
   const winnerName = side === 'home' ? plainTeam(match, 'home') : plainTeam(match, 'away');

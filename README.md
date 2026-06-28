@@ -1,10 +1,17 @@
-# Liga Ziomków v4.4 — ręczna korekta par
+# Liga Ziomków v4.5 — typ nie przenosi zwycięzcy dalej
 
-Poprawka dodaje panel admina w zakładce **Drabinka**:
+Poprawka bezpieczeństwa:
 
-- **Aktualizuj znane miejsca** — automat dalej uzupełnia to, co potrafi.
-- **Ręczna korekta** — Marcin może wpisać konkretne drużyny w meczach 73–88, w tym drużyny z 3. miejsc.
+- typ gracza w fazie pucharowej zapisuje się tylko w tabeli `predictions`;
+- wybór zwycięzcy w typie NIE aktualizuje kolejnej rundy;
+- zwycięzca przechodzi do następnego meczu dopiero po wejściu admina w `Wyniki` i zapisaniu oficjalnego wyniku;
+- auto-drabinka i ręczna korekta par nie propagują zwycięzców do kolejnych rund;
+- panel wyników nie pozwala rozliczyć meczu pucharowego przed startem meczu.
 
-To jest zabezpieczenie na sytuację, gdy oficjalnie wiadomo już kto gra, ale automatyczna tabela nie może bezpiecznie rozpoznać układu trzecich miejsc albo różni się od oficjalnego komunikatu FIFA.
+Wgraj do GitHuba: `index.html`, `app.js`, `styles.css`, `sw.js`, `README.md`.
 
-Nie trzeba ruszać Supabase SQL. Wystarczy wrzucić pliki do GitHuba.
+Opcjonalnie, jeśli 1/8 została już błędnie uzupełniona przez wcześniejszą wersję, uruchom w Supabase plik:
+
+`sql/04_reset_unplayed_next_rounds.sql`
+
+Ten plik resetuje tylko nierozliczone mecze 89–104 do placeholderów W73/W75 itd. Nie rusza meczów 73–88 ani typów.
